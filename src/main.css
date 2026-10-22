@@ -1,0 +1,21 @@
+/* Main layout fills the viewport */
+.container {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  
+  /* Top stays at the top */
+  .container > :first-child {
+    flex-shrink: 0;
+  }
+  
+  /* Middle component fills the remaining space */
+  .container > :nth-child(2) {
+    flex: 1;
+  }
+  
+  /* Bottom stays at the bottom */
+  .container > :last-child {
+    flex-shrink: 0;
+  }

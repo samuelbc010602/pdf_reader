@@ -1,0 +1,39 @@
+.toolbar_button {
+    /* Minimalistisk Google Docs struktur */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 12px;
+    font-size: 14px;
+    font-family: "Roboto", "Segoe UI", Arial, sans-serif;
+    font-weight: 400;
+    color: #444746;             /* Google Docs klassisk mørkegrå tekst */
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;         /* Bløde Google-hjørner */
+    cursor: pointer;
+    position: relative;
+    transition: background-color 0.15s ease;
+    user-select: none;
+  }
+  
+  /* Diskret grå baggrund ved hover */
+  .toolbar_button:hover {
+    background-color: rgba(68, 71, 70, 0.08); /* Meget lys grå */
+    font-weight: 700;                           /* Gør teksten fed */
+  }
+  
+  /* Aktiv tilstand (når der klikkes) */
+  .toolbar_button:active {
+    background-color: rgba(68, 71, 70, 0.16);
+  }
+  
+  /* TRICK: Forhindrer knappen i at hoppe/udvide sig, når teksten bliver fed */
+  .toolbar_button:after {
+    display: block;
+    content: attr(data-text);   /* Henter teksten fra HTML'en */
+    font-weight: 700;           /* Beregner bredden som fed på forhånd */
+    height: 0;
+    overflow: hidden;
+    visibility: hidden;
+  }
