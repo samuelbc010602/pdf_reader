@@ -3,15 +3,14 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import './main.css'
 import App from './App.jsx'
-import Top from './Top.jsx'
-import Bottom from './Bottom.jsx'
+import { TooltipProvider } from "@/components/ui/tooltip"
 
 createRoot(document.getElementById('root')).render(
     <StrictMode>
       <div className="container">
-        <Top />
+      <TooltipProvider>
         <App />
-        <Bottom />
+      </TooltipProvider>
       </div>
     </StrictMode>,
 )
