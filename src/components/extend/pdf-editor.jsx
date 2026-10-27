@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react"
+import { useContext } from "react";
 import { createPluginRegistration } from "@embedpdf/core"
 import {
   EmbedPDF,
@@ -242,6 +243,10 @@ import {
 import { PdfEditorWorkspace } from "@/components/extend/pdf-editor-workspace"
 import { ToastPrimitive, ToastProvider } from "@/components/extend/ui-toast"
 import { IconPlaceholder } from "@/components/icon-placeholder";
+import { DocSpecsContext } from "@/App";
+
+// The selected document is provided by DocSpecsContext before the editor mounts.
+// Use it as the editor source and keep the upload UI hidden.
 
 /* -------------------------------------------------------------------------- */
 /* Constants                                                                  */
@@ -1506,7 +1511,7 @@ function PdfEditorDocumentStatus({
           <div role={state === "error" ? "alert" : undefined}>
             {state === "error"
               ? (errorMessage ?? "The PDF could not be loaded.")
-              : "Open a PDF to start editing"}
+              : "No document is available."}
           </div>
           {onUploadFile ? (
             <>
@@ -3502,7 +3507,6 @@ export const PDFEditor = React.forwardRef(function PDFEditor(
     colorPresets = PDF_EDITOR_DEFAULT_COLOR_PRESETS,
     features,
     showToolbar = true,
-    showUpload = true,
     showDownload = true,
     toolbarActions,
     selectionActions,
@@ -3527,12 +3531,15 @@ export const PDFEditor = React.forwardRef(function PDFEditor(
   },
   ref
 ) {
+  const {uploadedFile} = useContext(DocSpecsContext)
+  const activeSource = uploadedFile ?? src
+  const activeFileName = uploadedFile?.name ?? fileName
   const { engine, error: engineError } = useSharedPdfEngine()
   const {
     source,
     loading: sourceLoading,
     replace,
-  } = useEditorSource(src, fileName)
+  } = useEditorSource(activeSource, activeFileName)
   const handleRef = React.useRef(null)
   const resolvedFeatures = React.useMemo(() => ({ ...PDF_EDITOR_DEFAULT_FEATURES, ...features }), [features])
   const resolvedSelectionActions = React.useMemo(
@@ -3681,7 +3688,7 @@ export const PDFEditor = React.forwardRef(function PDFEditor(
       }
       source={source}
       sourceLoading={sourceLoading}
-      fileNameOverride={fileName}
+      fileNameOverride={activeFileName}
       signatureStorageKey={signatureStorageKey}
       className={className}
       defaultZoom={defaultZoom}
@@ -3689,7 +3696,7 @@ export const PDFEditor = React.forwardRef(function PDFEditor(
       annotationAuthor={annotationAuthor}
       features={resolvedFeatures}
       showToolbar={showToolbar}
-      showUpload={showUpload}
+      showUpload={false}
       showDownload={showDownload}
       toolbarActions={toolbarActions}
       selectionActions={resolvedSelectionActions}

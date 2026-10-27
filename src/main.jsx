@@ -2,14 +2,15 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import './main.css'
-import App from './App.jsx'
+import Landing from './Landing'
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { AuthProvider } from "./context/AuthContext";
 
 createRoot(document.getElementById('root')).render(
     <StrictMode>
       <div className="container">
       <TooltipProvider>
-        <App />
+        <Landing />
       </TooltipProvider>
       </div>
     </StrictMode>,

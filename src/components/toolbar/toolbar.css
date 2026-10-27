@@ -1,39 +1,79 @@
+/* Container for each button and its dropdown */
+.toolbar_item {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Toolbar button styling */
 .toolbar_button {
-    /* Minimalistisk Google Docs struktur */
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 6px 12px;
-    font-size: 14px;
-    font-family: "Roboto", "Segoe UI", Arial, sans-serif;
-    font-weight: 400;
-    color: #444746;             /* Google Docs klassisk mørkegrå tekst */
-    background-color: transparent;
-    border: none;
-    border-radius: 4px;         /* Bløde Google-hjørner */
-    cursor: pointer;
-    position: relative;
-    transition: background-color 0.15s ease;
-    user-select: none;
-  }
-  
-  /* Diskret grå baggrund ved hover */
-  .toolbar_button:hover {
-    background-color: rgba(68, 71, 70, 0.08); /* Meget lys grå */
-    font-weight: 700;                           /* Gør teksten fed */
-  }
-  
-  /* Aktiv tilstand (når der klikkes) */
-  .toolbar_button:active {
-    background-color: rgba(68, 71, 70, 0.16);
-  }
-  
-  /* TRICK: Forhindrer knappen i at hoppe/udvide sig, når teksten bliver fed */
-  .toolbar_button:after {
-    display: block;
-    content: attr(data-text);   /* Henter teksten fra HTML'en */
-    font-weight: 700;           /* Beregner bredden som fed på forhånd */
-    height: 0;
-    overflow: hidden;
-    visibility: hidden;
-  }
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-family: "Roboto", "Segoe UI", Arial, sans-serif;
+  font-weight: 400;
+  color: #444746;
+  background-color: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
+}
+
+.toolbar_button:hover {
+  background-color: rgba(68, 71, 70, 0.08);
+}
+
+.toolbar_button.active {
+  background-color: rgba(68, 71, 70, 0.16);
+  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Dropdown positioned beneath its own button */
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  background-color: #ffffff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 8px 0;
+  z-index: 1000;
+  min-width: 160px;
+}
+
+/* Dropdown button styling */
+.dropdown-menu button {
+  padding: 8px 16px;
+  font-size: 14px;
+  color: #444746;
+  background-color: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.dropdown-menu button:hover {
+  background-color: rgba(68, 71, 70, 0.08);
+}
+
+/* Toolbar container */
+.toolbar_box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+}

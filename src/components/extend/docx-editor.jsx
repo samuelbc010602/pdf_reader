@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react"
+import { useContext } from "react";
 import {
   DocxEditorViewer,
   paragraphLetterheadFloatSideAtNodeIndex,
@@ -74,6 +75,7 @@ import {
 } from "@/components/extend/docx-annotation-card"
 import { FileThumbnail } from "@/components/extend/file-thumbnail"
 import { IconPlaceholder } from "@/components/icon-placeholder"
+import { DocSpecsContext } from "@/App"
 
 function DocxContextMenuItems({
   actions,
@@ -807,6 +809,7 @@ function DocxEditorToolbar({
   onOpenLinkEditor,
   onToggleSidebar,
   onUploadClick,
+  showUpload = true,
   pageCount,
   setZoomScale,
   showNightRenderToggle,
@@ -1024,24 +1027,26 @@ function DocxEditorToolbar({
             />
           </ToolbarIconButton>
           <Separator orientation="vertical" className="mx-1 h-4 self-center" />
-          <ToolbarIconButton
-            label="Import DOCX"
-            disabled={editor.isImporting}
-            onClick={onUploadClick}
-          >
-            {editor.isImporting ? (
-              <InlineSpinner className="size-4" />
-            ) : (
-              <IconPlaceholder
-                lucide="Upload"
-                tabler="IconUpload"
-                hugeicons="Upload01Icon"
-                phosphor="UploadSimpleIcon"
-                remixicon="RiUpload2Line"
-                className="size-4"
-              />
-            )}
-          </ToolbarIconButton>
+          {showUpload ? (
+            <ToolbarIconButton
+              label="Import DOCX"
+              disabled={editor.isImporting}
+              onClick={onUploadClick}
+            >
+              {editor.isImporting ? (
+                <InlineSpinner className="size-4" />
+              ) : (
+                <IconPlaceholder
+                  lucide="Upload"
+                  tabler="IconUpload"
+                  hugeicons="Upload01Icon"
+                  phosphor="UploadSimpleIcon"
+                  remixicon="RiUpload2Line"
+                  className="size-4"
+                />
+              )}
+            </ToolbarIconButton>
+          ) : null}
           <ToolbarIconButton
             label="Download DOCX"
             disabled={controlsDisabled || editor.isImporting}
@@ -1730,6 +1735,8 @@ function DocxEditorContent({
   shouldRenderNightMode,
   url
 }) {
+  // The selected document is provided by DocSpecsContext before the editor mounts.
+  const {uploadedFile} = useContext(DocSpecsContext);
   const fileInputRef = React.useRef(null)
   const imageInputRef = React.useRef(null)
   const viewportRef = React.useRef(null)
@@ -1737,13 +1744,20 @@ function DocxEditorContent({
     React.useState(null)
   const [viewerShellRef, viewerShellWidth] = useElementWidth()
   const [uploadedDocxFile, setUploadedDocxFile] =
-    React.useState(null)
+    React.useState(() =>
+      uploadedFile
+        ? {
+            file: uploadedFile,
+            identity: `${uploadedFile.name}-${uploadedFile.size}-${uploadedFile.lastModified}`,
+          }
+        : null
+    )
   const [activePage, setActivePage] = React.useState(1)
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
   const resolvedDefaultZoomScale = normalizeDocxZoomScale(defaultZoomScale)
   const [zoomScale, setZoomScale] = React.useState(resolvedDefaultZoomScale)
   const [loadError, setLoadError] = React.useState()
-  const [isLoadingDocument, setIsLoadingDocument] = React.useState(Boolean(url))
+  const [isLoadingDocument, setIsLoadingDocument] = React.useState(Boolean(url || uploadedFile))
   const [isReadOnly, setIsReadOnly] = React.useState(false)
   const [linkEditorOpen, setLinkEditorOpen] = React.useState(false)
   const [linkDraft, setLinkDraft] = React.useState("")
@@ -2010,6 +2024,7 @@ function DocxEditorContent({
         onOpenLinkEditor={openLinkEditor}
         onToggleSidebar={() => setSidebarOpen((open) => !open)}
         onUploadClick={() => fileInputRef.current?.click()}
+        showUpload={false}
         pageCount={pageCount}
         setZoomScale={setZoomScale}
         showNightRenderToggle={shouldRenderNightMode}
@@ -2119,28 +2134,7 @@ function DocxEditorContent({
           {!url && !uploadedDocxFile ? (
             <div className="grid h-full min-h-96 place-items-center p-6 text-center">
               <div className="max-w-md rounded-lg border bg-background p-4 text-sm shadow-xs">
-                <div className="font-medium">Upload a DOCX to edit</div>
-                <div className="mt-1 text-muted-foreground">
-                  Pass a DOCX URL with the <code>src</code> prop or upload a
-                  file.
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-4"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <IconPlaceholder
-                    lucide="Upload"
-                    tabler="IconUpload"
-                    hugeicons="Upload01Icon"
-                    phosphor="UploadSimpleIcon"
-                    remixicon="RiUpload2Line"
-                    className="size-4"
-                  />
-                  Upload DOCX
-                </Button>
+                <div className="font-medium">No document is available.</div>
               </div>
             </div>
           ) : loadError ? (

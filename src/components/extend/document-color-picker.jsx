@@ -36,7 +36,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { IconPlaceholder } from "@/components/icon-placeholder"
+import { IconPlaceholder } from "@/components/icon-placeholder";
 
 const cossInputKeyboardFocusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"

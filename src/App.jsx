@@ -1,48 +1,37 @@
-import { useState, useEffect } from "react";
-import Top from './Top.jsx'
-import Bottom from './Bottom.jsx'
-import Toolbar from './components/toolbar/toolbar'
-import CustomDocument from './components/document/document'
+import { useState, createContext } from "react";
+import Toolbar from './components/toolbar/toolbar';
+import CustomDocument from './components/document/document';
+
+// Create the context
+const DocSpecsContext = createContext();
 
 function App() {
-  const [documents, setDocuments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [toCheck,setCheck] = useState(false);
-  const [initial,setInitial] = useState(false)
-
-  useEffect(() =>{
-    if (initial == false){
-      setInitial(true);
-      return;
-    }
-    const controller = new AbortController();
-    console.log("the checker change");
-
-    async function getDocuments() {
-      const response = await fetch('/api/documents');
-      if (!response.ok){
-        throw new Error("Response from flask failed");
-      }
-      const data = await response.json()
-      setDocuments(data)
-    }
-
-    getDocuments()
-
-    return () => controller.abort();
-
-  },[toCheck]);
-
+  const [uploadedFile,setUploadedFile] = useState(null);
+  const [fileName,setFileName] = useState();
+  const [fileType,setFileType] = useState();
+  const [signature,setSignature] = useState((false,null));
 
   return (  
-    <div>
-    <Top></Top>
-    <Toolbar></Toolbar>
-    <CustomDocument></CustomDocument>
-    <Bottom></Bottom>
-    </div>
+    <DocSpecsContext.Provider value={{ 
+      uploadedFile,
+      setUploadedFile,
+      fileName,
+      setFileName,
+      fileType,
+      setFileType,
+      signature,
+      setSignature }}>
+      <div className="app-container">
+        <div className="toolbar-container">
+          <Toolbar />
+        </div>
+        <div className="content-container">
+          <CustomDocument />
+        </div>
+      </div>
+    </DocSpecsContext.Provider>
   );
 }
 
 export default App;
+export { DocSpecsContext }; // Export the context for use in other components
