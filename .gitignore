@@ -22,3 +22,15 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+**/token.json
+**/credentials.json
+instance/
+
+
+backend/__pycache__/*
+backend/config.py
+backend/credentials.json
+backend/instance/*
+backend/redis-stable/*
+backend/services/received_emails/*
+backend/tasks/__pycache__/*

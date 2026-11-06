@@ -1,7 +1,7 @@
 
 
 
-export default function DownloadFile({ uploadedFile }) {
+export default function DownloadFile({ uploadedFile,setToExport }) {
     const handleDownload = () => {
       if (!uploadedFile) {
         console.error("No file available to download.");

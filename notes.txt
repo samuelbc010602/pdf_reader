@@ -1,0 +1,2 @@
+når bruger logger ind fra login eller laver ny bruger går den ikke videre
+add additional check checking if username and password matches criteria i register endpont

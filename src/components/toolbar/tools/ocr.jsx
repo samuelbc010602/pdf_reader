@@ -1,29 +1,37 @@
-import React, { useState } from "react";
+import React, { useContext, useState } from "react";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import * as pdfjsLib from "pdfjs-dist";
 import { createWorker } from "tesseract.js";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { DocSpecsContext } from "@/App";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
-export default function OCR({
-  setUploadedFile,
-  setFileName,
-  setFileType,
-}) {
+export default function OCR() {
   const [isOpen, setIsOpen] = useState(false);
   const [file, setFile] = useState(null);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState("");
+  const [processedFile, setProcessedFile] = useState(null);
+  const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
+
+  const {setUploadedFile,
+    setFileName,
+    setFileType,
+    uploadedFile} = useContext(DocSpecsContext);
 
   function selectFile(event) {
     const selected = event.target.files?.[0];
+
     if (selected) {
       setFile(selected);
+      setProcessedFile(null);
+      setShowOverwriteConfirm(false);
       setError("");
     }
+
     event.target.value = "";
   }
 
@@ -40,46 +48,76 @@ export default function OCR({
       worker = await createWorker("eng");
 
       const pdfBytes = await file.arrayBuffer();
-      const sourcePdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
+      const sourcePdf = await pdfjsLib.getDocument({
+        data: pdfBytes,
+      }).promise;
+
       const outputPdf = await PDFDocument.create();
       const font = await outputPdf.embedFont(StandardFonts.Helvetica);
 
       for (let pageIndex = 0; pageIndex < sourcePdf.numPages; pageIndex++) {
-        setStatus(`Processing page ${pageIndex + 1}/${sourcePdf.numPages}`);
+        setStatus(
+          `Processing page ${pageIndex + 1}/${sourcePdf.numPages}`
+        );
 
         const page = await sourcePdf.getPage(pageIndex + 1);
         const viewport = page.getViewport({ scale: 2 });
+
         const canvas = document.createElement("canvas");
         canvas.width = Math.ceil(viewport.width);
         canvas.height = Math.ceil(viewport.height);
 
         const context = canvas.getContext("2d");
-        if (!context) throw new Error("Could not create a canvas context.");
 
-        await page.render({ canvasContext: context, viewport }).promise;
+        if (!context) {
+          throw new Error("Could not create a canvas context.");
+        }
+
+        await page.render({
+          canvasContext: context,
+          viewport,
+        }).promise;
 
         const imageBlob = await new Promise((resolve, reject) => {
-          canvas.toBlob((blob) => {
-            if (blob) resolve(blob);
-            else reject(new Error("Could not render the PDF page to an image."));
-          }, "image/png");
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                resolve(blob);
+              } else {
+                reject(
+                  new Error("Could not render the PDF page to an image.")
+                );
+              }
+            },
+            "image/png"
+          );
         });
 
-        // Request block output; depending on Tesseract.js version, words may
-        // be returned directly or nested inside blocks/paragraphs/lines.
-        const result = await worker.recognize(imageBlob, {}, { blocks: true });
+        const result = await worker.recognize(
+          imageBlob,
+          {},
+          { blocks: true }
+        );
+
         const data = result?.data ?? {};
+
         const words = Array.isArray(data.words)
           ? data.words
           : (data.blocks ?? []).flatMap((block) =>
               (block.paragraphs ?? []).flatMap((paragraph) =>
-                (paragraph.lines ?? []).flatMap((line) => line.words ?? [])
+                (paragraph.lines ?? []).flatMap(
+                  (line) => line.words ?? []
+                )
               )
             );
 
         const pngBytes = await imageBlob.arrayBuffer();
         const png = await outputPdf.embedPng(pngBytes);
-        const outputPage = outputPdf.addPage([viewport.width, viewport.height]);
+
+        const outputPage = outputPdf.addPage([
+          viewport.width,
+          viewport.height,
+        ]);
 
         outputPage.drawImage(png, {
           x: 0,
@@ -104,9 +142,8 @@ export default function OCR({
             continue;
           }
 
-          // PDF coordinates start at the bottom-left; OCR coordinates start
-          // at the top-left. Use the OCR word box to position invisible text.
           const fontSize = Math.max(1, y1 - y0);
+
           outputPage.drawText(text, {
             x: x0,
             y: viewport.height - y1,
@@ -119,51 +156,99 @@ export default function OCR({
 
         canvas.width = 0;
         canvas.height = 0;
+
         setProgress((pageIndex + 1) / sourcePdf.numPages);
       }
 
       const bytes = await outputPdf.save();
-      const outputName = `${file.name.replace(/\.pdf$/i, "")}_ocr.pdf`;
-      return new File([bytes], outputName, { type: "application/pdf" });
+
+      const outputName =
+        `${file.name.replace(/\.pdf$/i, "")}_ocr.pdf`;
+
+      return new File([bytes], outputName, {
+        type: "application/pdf",
+      });
     } catch (err) {
       console.error("Failed to OCR PDF:", err);
-      setError(err?.message || "Failed to make the PDF searchable.");
+      setError(
+        err?.message || "Failed to make the PDF searchable."
+      );
       return null;
     } finally {
       if (worker) {
         try {
           await worker.terminate();
         } catch (terminateError) {
-          console.warn("Could not terminate OCR worker cleanly:", terminateError);
+          console.warn(
+            "Could not terminate OCR worker cleanly:",
+            terminateError
+          );
         }
       }
+
       setIsProcessing(false);
       setStatus("");
     }
   }
 
   async function downloadOCR() {
-    const output = await makeSearchablePDF();
+    const output = processedFile || await makeSearchablePDF();
+
     if (!output) return;
 
     const url = URL.createObjectURL(output);
     const link = document.createElement("a");
+
     link.href = url;
     link.download = output.name;
     document.body.appendChild(link);
     link.click();
     link.remove();
+
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  async function openInEditor() {
-    const output = await makeSearchablePDF();
+  function openProcessedFile(output) {
     if (!output) return;
 
     setUploadedFile(output);
     setFileName(output.name);
     setFileType("pdf");
+
+    setShowOverwriteConfirm(false);
     setIsOpen(false);
+  }
+
+  async function openInEditor() {
+    const output = processedFile || await makeSearchablePDF();
+
+    if (!output) return;
+
+    setProcessedFile(output);
+
+    if (!uploadedFile) {
+      // No existing document: open immediately.
+      openProcessedFile(output);
+    } else {
+      // An existing document is open: ask before replacing it.
+      setShowOverwriteConfirm(true);
+    }
+  }
+
+  function handleOverwrite() {
+    openProcessedFile(processedFile);
+  }
+
+  function handleCancelOverwrite() {
+    setShowOverwriteConfirm(false);
+  }
+
+  function handleClose() {
+    if (isProcessing) return;
+
+    setIsOpen(false);
+    setShowOverwriteConfirm(false);
+    setError("");
   }
 
   return (
@@ -180,7 +265,11 @@ export default function OCR({
           >
             <div style={styles.header}>
               <h2 id="ocr-title">Make PDF searchable</h2>
-              <button disabled={isProcessing} onClick={() => setIsOpen(false)}>
+
+              <button
+                disabled={isProcessing}
+                onClick={handleClose}
+              >
                 Close
               </button>
             </div>
@@ -189,6 +278,7 @@ export default function OCR({
 
             <label style={styles.uploadButton}>
               Select PDF
+
               <input
                 hidden
                 type="file"
@@ -201,7 +291,9 @@ export default function OCR({
             {file && (
               <div style={styles.fileBox}>
                 <strong>{file.name}</strong>
-                <div>{(file.size / 1024 / 1024).toFixed(2)} MB</div>
+                <div>
+                  {(file.size / 1024 / 1024).toFixed(2)} MB
+                </div>
               </div>
             )}
 
@@ -215,23 +307,65 @@ export default function OCR({
                     }}
                   />
                 </div>
-                <p>{status || "Starting OCR…"} ({Math.round(progress * 100)}%)</p>
+
+                <p>
+                  {status || "Starting OCR…"} (
+                  {Math.round(progress * 100)}%)
+                </p>
               </>
             )}
 
-            {error && <p role="alert" style={styles.error}>{error}</p>}
+            {error && (
+              <p role="alert" style={styles.error}>
+                {error}
+              </p>
+            )}
 
-            <div style={styles.footer}>
-              <button disabled={!file || isProcessing} onClick={downloadOCR}>
-                {isProcessing ? "Processing…" : "Download searchable PDF"}
-              </button>
-              <button disabled={!file || isProcessing} onClick={openInEditor}>
-                {isProcessing ? "Processing…" : "Open in editor"}
-              </button>
-            </div>
+            {showOverwriteConfirm ? (
+              <div style={styles.confirmBox}>
+                <p>
+                  You have already opened another file in the editor.
+                  Do you want to overwrite it with the searchable PDF?
+                </p>
+
+                <div style={styles.confirmActions}>
+                  <button
+                    onClick={handleOverwrite}
+                    disabled={!processedFile}
+                  >
+                    Overwrite
+                  </button>
+
+                  <button onClick={handleCancelOverwrite}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={styles.footer}>
+                <button
+                  disabled={!file || isProcessing}
+                  onClick={downloadOCR}
+                >
+                  {isProcessing
+                    ? "Processing…"
+                    : "Download searchable PDF"}
+                </button>
+
+                <button
+                  disabled={!file || isProcessing}
+                  onClick={openInEditor}
+                >
+                  {isProcessing
+                    ? "Processing…"
+                    : "Open in editor"}
+                </button>
+              </div>
+            )}
 
             <p style={styles.hint}>
-              Page numbers and text recognition depend on scan quality. Large PDFs may take a while to process.
+              Page numbers and text recognition depend on scan quality.
+              Large PDFs may take a while to process.
             </p>
           </div>
         </div>
@@ -299,6 +433,19 @@ const styles = {
     flexWrap: "wrap",
     gap: 10,
     marginTop: 24,
+  },
+  confirmBox: {
+    marginTop: 20,
+    padding: 16,
+    border: "1px solid #ddd",
+    borderRadius: 8,
+    background: "#f9f9f9",
+  },
+  confirmActions: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 10,
   },
   hint: {
     marginTop: 16,

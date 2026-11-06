@@ -1,9 +1,11 @@
 import { Field } from "@base-ui/react";
+import { DocSpecsContext } from "@/App";
+import { useContext } from "react";
 
 
 
-
-export default function OpenFile({ setUploadedFile, setFileName, setFileType }) {
+export default function OpenFile({ setUploadedFile, setFileName, setFileType, setNewPdf }) {
+    setNewPdf(false);
     const input = document.createElement("input");
 
     input.type = "file";

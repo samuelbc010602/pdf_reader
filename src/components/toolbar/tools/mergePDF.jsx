@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { PDFDocument } from "pdf-lib";
 
 export default function MergePDF({
+  uploadedFile,
   setUploadedFile,
   setFileName,
   setFileType,
@@ -10,6 +11,7 @@ export default function MergePDF({
   const [pdfs, setPdfs] = useState([]);
   const [isMerging, setIsMerging] = useState(false);
   const [error, setError] = useState("");
+  const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
 
   // Add PDFs and read their page counts.
   async function addPDFs(event) {
@@ -162,30 +164,23 @@ export default function MergePDF({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  async function openMergedPDF() {
-    const file = await createMergedPDF();
-    if (!file) return;
-
-    // Send the merged File to the existing editor.
-
-    function setNewFile(){
+  async function openMergedPDF(shouldOverwrite) {
+      const file = await createMergedPDF();
+      if (!file) return;
+  
+      const setNewFile = () => {
         setUploadedFile(file);
         setFileName(file.name);
         setFileType("pdf");
         setIsOpen(false);
-    }
-    if (file == null){
+        setShowOverwriteConfirm(false);
+      };
+  
+      if (!uploadedFile || shouldOverwrite) {
         setNewFile();
-    }else{
-        return (
-            <div style={{ padding: "20px" }}>
-                {window.alert("You have already opened another file in the editor, do you want to overwrite")}
-                <button onClick = {() => setNewFile()}>Overwrite</button>
-                <button>Cancel</button>
-            </div>
-          );
-    }
-
+      } else {
+        setShowOverwriteConfirm(true);
+      }
     
   }
 
@@ -278,21 +273,39 @@ export default function MergePDF({
               </p>
             )}
 
-            <div style={styles.footer}>
-              <button
-                disabled={isMerging || pdfs.length === 0}
-                onClick={downloadMergedPDF}
-              >
-                {isMerging ? "Merging..." : "Download merged PDF"}
-              </button>
+{showOverwriteConfirm ? (
+  <div style={styles.confirmBox}>
+    <p>
+      You have already opened another file in the editor, do you want to overwrite?
+    </p>
 
-              <button
-                disabled={isMerging || pdfs.length === 0}
-                onClick={openMergedPDF}
-              >
-                {isMerging ? "Merging..." : "Open in editor"}
-              </button>
-            </div>
+    <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+      <button onClick={() => openMergedPDF(true)}>
+        Overwrite
+      </button>
+
+      <button onClick={() => setShowOverwriteConfirm(false)}>
+        Cancel
+      </button>
+    </div>
+  </div>
+) : (
+  <div style={styles.footer}>
+    <button
+      disabled={isMerging || pdfs.length === 0}
+      onClick={downloadMergedPDF}
+    >
+      {isMerging ? "Merging..." : "Download merged PDF"}
+    </button>
+
+    <button
+      disabled={isMerging || pdfs.length === 0}
+      onClick={() => openMergedPDF(false)}
+    >
+      {isMerging ? "Merging..." : "Open in editor"}
+    </button>
+  </div>
+)}
 
             <p style={styles.hint}>
               Page numbers start at 1. Examples: 1-3, 5, 8-10.

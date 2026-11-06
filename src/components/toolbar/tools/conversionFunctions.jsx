@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-
+import React, { useContext, useState } from "react";
+import { DocSpecsContext } from "@/App";
 
 function createValidPdfFile(filename) {
   const minimalPdfBytes = 
@@ -121,18 +121,18 @@ export function PDFHTML({
 // ==========================================
 // 2. HTMLPDF: Upload HTML -> Convert -> Download / Open in Editor
 // ==========================================
-export function HTMLPDF({
-  setUploadedFile,
-  setFileName,
-  setFileType,
-  uploadedFile,
-}) {
+export function HTMLPDF() {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [isConverting, setIsConverting] = useState(false);
   const [error, setError] = useState("");
   const [convertedFile, setConvertedFile] = useState(null);
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
+
+  const {setUploadedFile,
+    setFileName,
+    setFileType,
+    uploadedFile} = useContext(DocSpecsContext);
 
   function handleFileChange(event) {
     const file = event.target.files?.[0];
@@ -368,18 +368,18 @@ export function PDFMarkdown({
 // ==========================================
 // 4. MarkdownPDF: Upload Markdown -> Convert -> Download / Open in Editor
 // ==========================================
-export function MarkdownPDF({
-  setUploadedFile,
-  setFileName,
-  setFileType,
-  uploadedFile,
-}) {
+export function MarkdownPDF() {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [isConverting, setIsConverting] = useState(false);
   const [error, setError] = useState("");
   const [convertedFile, setConvertedFile] = useState(null);
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
+
+  const {setUploadedFile,
+    setFileName,
+    setFileType,
+    uploadedFile} = useContext(DocSpecsContext);
 
   function handleFileChange(event) {
     const file = event.target.files?.[0];
@@ -515,18 +515,17 @@ export function MarkdownPDF({
 import mammoth from "mammoth";
 import {PDFDocument, rgb, StandardFonts } from "pdf-lib";
 
-export function WordPDF({
-  setUploadedFile,
-  setFileName,
-  setFileType,
-  uploadedFile,
-}) {
+export function WordPDF() {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [isConverting, setIsConverting] = useState(false);
   const [error, setError] = useState("");
   const [convertedFile, setConvertedFile] = useState(null);
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
+  const {setUploadedFile,
+    setFileName,
+    setFileType,
+    uploadedFile} = useContext(DocSpecsContext);
 
   function handleFileChange(event) {
     const file = event.target.files?.[0];
@@ -633,6 +632,7 @@ export function WordPDF({
   }
 
   async function handleOpenInEditor() {
+    console.log("convertedFile",convertedFile);
     if (!convertedFile) return;
 
     const setNewFile = () => {
@@ -649,6 +649,8 @@ export function WordPDF({
       setShowOverwriteConfirm(true);
     }
   }
+
+  console.log("WordPDF uploadFile",uploadedFile);
 
   return (
     <>
@@ -679,7 +681,7 @@ export function WordPDF({
 
             {error && <p role="alert" style={styles.error}>{error}</p>}
 
-            {showOverwriteConfirm ? (
+            {uploadedFile != null ? (
               <div style={styles.confirmBox}>
                 <p>You have already opened another file in the editor, do you want to overwrite?</p>
                 <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
