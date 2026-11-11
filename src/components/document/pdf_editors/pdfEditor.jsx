@@ -1,15 +1,15 @@
-
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { BLANK_PDF } from "@pdfme/common";
+import { FaInfoCircle } from "react-icons/fa";
 import { Designer } from "@pdfme/ui";
 import { generate } from "@pdfme/generator";
-import { DocSpecsContext } from "@/App";
 import {
   text,
   image,
   signature,
   barcodes,
 } from "@pdfme/schemas";
+
 import "./PdfEditor.css";
 
 const plugins = {
@@ -27,12 +27,16 @@ const createBlankTemplate = () => ({
 export default function PdfEditor({ config, style }) {
   const containerRef = useRef(null);
   const designerRef = useRef(null);
-  const fileInputRef = useRef(null);
+  const templateInputRef = useRef(null);
+  const pdfInputRef = useRef(null);
 
   const [fileName, setFileName] = useState("Untitled");
-  const [zoom, setZoom] = useState(1);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+
+  // --------------------------------------------------
+  // Designer initialization
+  // --------------------------------------------------
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -43,8 +47,17 @@ export default function PdfEditor({ config, style }) {
       plugins,
       options: {
         zoomLevel: 1,
+        maxZoom: 400,
         sidebarOpen: true,
+        leftSidebarWidth: 65,
+        rightSidebarWidth: 400,
         lang: "en",
+        theme: {
+          token: {
+            colorPrimary: "#10b981",
+            borderRadius: 8,
+          },
+        },
       },
     });
 
@@ -56,24 +69,90 @@ export default function PdfEditor({ config, style }) {
     };
   }, []);
 
-  // Download a file in the browser.
-  const downloadBlob = (blob, name) => {
+  // --------------------------------------------------
+  // Helpers
+  // --------------------------------------------------
+
+  const downloadBlob = useCallback((blob, name) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
 
     link.href = url;
     link.download = name;
+
     document.body.appendChild(link);
     link.click();
     link.remove();
 
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, []);
+
+  const getTemplate = () => {
+    return designerRef.current?.getTemplate();
   };
 
-  // Save the editable design as a JSON template.
-  const saveTemplate = () => {
+  // --------------------------------------------------
+  // New document
+  // --------------------------------------------------
+
+  const startNewDocument = useCallback(() => {
+    if (
+      !window.confirm(
+        "Start a new document? Unsaved changes will be lost."
+      )
+    ) {
+      return;
+    }
+
+    designerRef.current?.updateTemplate(createBlankTemplate());
+
+    setFileName("Untitled");
+    setMessage("");
+  }, []);
+
+  // --------------------------------------------------
+  // Open PDF
+  // --------------------------------------------------
+
+  const openPdf = useCallback(() => {
+    pdfInputRef.current?.click();
+  }, []);
+
+  const handlePdfFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file || !designerRef.current) return;
+
     try {
-      const template = designerRef.current?.getTemplate();
+      if (file.type !== "application/pdf") {
+        throw new Error("Please select a PDF file.");
+      }
+
+      const pdfBytes = new Uint8Array(await file.arrayBuffer());
+
+      const template = {
+        basePdf: pdfBytes,
+        schemas: [[]],
+      };
+
+      designerRef.current.updateTemplate(template);
+
+      setFileName(file.name.replace(/\.pdf$/i, ""));
+      setMessage("PDF opened successfully.");
+    } catch (error) {
+      console.error(error);
+      setMessage(error.message || "Could not open PDF.");
+    }
+  };
+
+  // --------------------------------------------------
+  // Save editable template
+  // --------------------------------------------------
+
+  const saveTemplate = useCallback(() => {
+    try {
+      const template = getTemplate();
 
       if (!template) return;
 
@@ -84,24 +163,60 @@ export default function PdfEditor({ config, style }) {
         `${fileName || "document"}.json`
       );
 
-      setMessage("Template saved.");
+      setMessage("Template saved successfully.");
     } catch (error) {
       console.error(error);
-      setMessage("Could not save the template.");
+      setMessage("Could not save template.");
+    }
+  }, [fileName, downloadBlob]);
+
+  // --------------------------------------------------
+  // Open editable template
+  // --------------------------------------------------
+
+  const openTemplate = useCallback(() => {
+    templateInputRef.current?.click();
+  }, []);
+
+  const handleTemplateFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file || !designerRef.current) return;
+
+    try {
+      const template = JSON.parse(await file.text());
+
+      if (
+        !template ||
+        !Array.isArray(template.schemas) ||
+        !template.basePdf
+      ) {
+        throw new Error("Invalid template.");
+      }
+
+      designerRef.current.updateTemplate(template);
+
+      setFileName(file.name.replace(/\.json$/i, ""));
+      setMessage("Template opened successfully.");
+    } catch (error) {
+      console.error(error);
+      setMessage("Could not open this template.");
     }
   };
 
-  // Export the current design as an actual PDF file.
-  const exportPdf = async () => {
+  // --------------------------------------------------
+  // Export PDF
+  // --------------------------------------------------
+
+  const exportPdf = useCallback(async () => {
     if (!designerRef.current || busy) return;
 
     setBusy(true);
-    setMessage("");
 
     try {
-      const template = designerRef.current.getTemplate();
+      const template = getTemplate();
 
-      // Use each element's current content as its initial value.
       const inputs = template.schemas.map((page) =>
         Object.fromEntries(
           page.map((schema) => [
@@ -123,141 +238,90 @@ export default function PdfEditor({ config, style }) {
         }),
         `${fileName || "document"}.pdf`
       );
+
+      setMessage("PDF exported successfully.");
     } catch (error) {
       console.error(error);
-      setMessage("PDF export failed. Check the console for details.");
+      setMessage("PDF export failed.");
     } finally {
       setBusy(false);
     }
-  };
+  }, [busy, fileName, downloadBlob]);
 
-  // Open a previously saved pdfme JSON template.
-  const openTemplate = () => {
-    fileInputRef.current?.click();
-  };
+  // --------------------------------------------------
+  // Toolbar event listeners
+  // --------------------------------------------------
 
-  const handleTemplateFile = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
+  useEffect(() => {
+    const events = {
+      "pdf-editor:new": startNewDocument,
+      "pdf-editor:open-pdf": openPdf,
+      "pdf-editor:open-template": openTemplate,
+      "pdf-editor:save-template": saveTemplate,
+      "pdf-editor:export": exportPdf,
+    };
 
-    if (!file || !designerRef.current) return;
-
-    try {
-      const template = JSON.parse(await file.text());
-
-      if (
-        !template ||
-        !Array.isArray(template.schemas) ||
-        !template.basePdf
-      ) {
-        throw new Error("Invalid pdfme template.");
-      }
-
-      // Replace the existing design without remounting the component.
-      designerRef.current.updateTemplate(template);
-
-      setFileName(file.name.replace(/\.json$/i, ""));
-      setMessage("Template opened.");
-    } catch (error) {
-      console.error(error);
-      setMessage("Could not open this template.");
-    }
-  };
-
-  const changeZoom = (amount) => {
-    const nextZoom = Math.min(
-      2,
-      Math.max(0.5, Math.round((zoom + amount) * 100) / 100)
-    );
-
-    setZoom(nextZoom);
-    designerRef.current?.updateOptions({
-      zoomLevel: nextZoom,
+    Object.entries(events).forEach(([name, handler]) => {
+      window.addEventListener(name, handler);
     });
-  };
 
-  const startNewDocument = () => {
-    if (
-      !window.confirm(
-        "Start a new document? Export or save your current template first."
-      )
-    ) {
-      return;
-    }
+    return () => {
+      Object.entries(events).forEach(([name, handler]) => {
+        window.removeEventListener(name, handler);
+      });
+    };
+  }, [
+    startNewDocument,
+    openPdf,
+    openTemplate,
+    saveTemplate,
+    exportPdf,
+  ]);
 
-    designerRef.current?.updateTemplate(createBlankTemplate());
-    setFileName("Untitled");
-    setMessage("");
-    setZoom(1);
-    designerRef.current?.updateOptions({ zoomLevel: 1 });
-  };
+  // --------------------------------------------------
+  // Render
+  // --------------------------------------------------
 
   return (
     <div className="pdf-editor" style={style}>
-      <header className="pdf-editor__toolbar">
-        <div className="pdf-editor__file">
-          <input
-            value={fileName}
-            aria-label="Document name"
-            onChange={(event) => setFileName(event.target.value)}
-            title="Document name"
-          />
-        </div>
+      <input
+        ref={templateInputRef}
+        type="file"
+        accept=".json,application/json"
+        hidden
+        onChange={handleTemplateFile}
+      />
 
-        <div className="pdf-editor__actions">
-          <button onClick={startNewDocument}>
-            New
-          </button>
-
-          <button onClick={openTemplate}>
-            Open template
-          </button>
-
-          <button onClick={saveTemplate}>
-            Save template
-          </button>
-
-          <button
-            onClick={() => changeZoom(-0.25)}
-            disabled={zoom <= 0.5}
-            title="Zoom out"
-          >
-            −
-          </button>
-
-          <span className="pdf-editor__zoom">
-            {Math.round(zoom * 100)}%
-          </span>
-
-          <button
-            onClick={() => changeZoom(0.25)}
-            disabled={zoom >= 2}
-            title="Zoom in"
-          >
-            +
-          </button>
-
-          <button
-            className="pdf-editor__export"
-            onClick={exportPdf}
-            disabled={busy}
-          >
-            {busy ? "Exporting..." : "Export PDF"}
-          </button>
-        </div>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json,application/json"
-          hidden
-          onChange={handleTemplateFile}
-        />
-      </header>
+      <input
+        ref={pdfInputRef}
+        type="file"
+        accept=".pdf,application/pdf"
+        hidden
+        onChange={handlePdfFile}
+      />
 
       {message && (
-        <div className="pdf-editor__message" role="status">
-          {message}
+        <div className="pdf-message-overlay">
+          <div className="pdf-message-popup" role="alert">
+            <div className="pdf-message-popup__icon">
+              <FaInfoCircle />
+            </div>
+
+            <p>{message}</p>
+
+            <button
+              className="pdf-message-popup__button"
+              onClick={() => setMessage("")}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+
+      {busy && (
+        <div className="pdf-editor__loading">
+          Generating PDF...
         </div>
       )}
 

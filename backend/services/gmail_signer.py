@@ -9,14 +9,45 @@ import requests
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+from tasks.utils import *
 
+import os
+from pathlib import Path
 
-# --------------------------------------------------
-# CONFIGURATION
-# --------------------------------------------------
+BASE_DIR = Path(__file__).resolve().parent
+
+# Application secrets
+SECRET_KEY = os.environ["SECRET_KEY"]
 
 BREVO_API_KEY = os.getenv("BREVO_API_KEY")
 SIGNITS_API_KEY = os.getenv("SIGNITS_API_KEY")
+
+SCOPES = [
+    "https://www.googleapis.com/auth/gmail.readonly"
+]
+
+# File storage
+PDF_DIR = BASE_DIR / "test_files"
+RECEIVED_DIR = BASE_DIR / "received_emails"
+
+PDF_DIR.mkdir(exist_ok=True)
+RECEIVED_DIR.mkdir(exist_ok=True)
+
+# Polling configuration
+SIGNITS_POLL_INTERVAL = 15
+SIGNITS_MAX_WAIT_SECONDS = 30 * 60
+
+POLL_INTERVAL = 10
+MAX_WAIT_SECONDS = 30 * 60
+
+# Flask configuration
+SQLALCHEMY_DATABASE_URI = "sqlite:///app.db"
+SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_SAMESITE = "Lax"
+PERMANENT_SESSION_LIFETIME = 60 * 60 * 8
 
 SIGNITS_BASE_URL = "https://sign.signits.dk"
 
@@ -24,10 +55,6 @@ SENDER_NAME = "Samuel Cadell"
 SENDER_EMAIL = "samuelcadell1@gmail.com"
 
 GOOGLE_ACCOUNT_EMAIL = "samuelcadell1@gmail.com"
-
-SCOPES = [
-    "https://www.googleapis.com/auth/gmail.readonly"
-]
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -39,7 +66,6 @@ SIGNED_DIR = BASE_DIR / "signed_emails"
 
 RECEIVED_DIR.mkdir(parents=True, exist_ok=True)
 SIGNED_DIR.mkdir(parents=True, exist_ok=True)
-
 
 # --------------------------------------------------
 # GOOGLE OAUTH
@@ -85,31 +111,6 @@ def get_gmail_service():
     )
 
     return service
-
-
-# --------------------------------------------------
-# PDF VALIDATION
-# --------------------------------------------------
-
-def read_pdf(pdf_path):
-
-    with open(pdf_path, "rb") as f:
-        pdf_bytes = f.read()
-
-    if not pdf_bytes.startswith(b"%PDF-"):
-        raise ValueError("Invalid PDF file.")
-
-    return pdf_bytes
-
-
-def safe_filename(value):
-
-    return re.sub(
-        r"[^a-zA-Z0-9._-]",
-        "_",
-        str(value)
-    )
-
 
 # --------------------------------------------------
 # SEND EMAIL THROUGH BREVO
@@ -373,159 +374,3 @@ def check_for_signed_pdf(
 
     # No matching reply yet.
     return None, None
-
-
-# --------------------------------------------------
-# SEND PDF TO SIGNITS
-# --------------------------------------------------
-
-def send_to_signits(
-    sign_method,
-    signer_name,
-    signer_email,
-    username,
-    mail,
-    pdf_path,
-    title
-):
-    print("in send_to_signits with",sign_method,
-    signer_name,
-    signer_email,
-    username,
-    mail,
-    pdf_path,
-    title)
-
-    if not SIGNITS_API_KEY:
-        raise RuntimeError("SIGNITS_API_KEY is not set.")
-
-    pdf_bytes = read_pdf(pdf_path)
-
-    url = f"{SIGNITS_BASE_URL}/api/v1/contracts"
-
-    headers = {
-        "Authorization": f"Bearer {SIGNITS_API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    payload = {
-
-        "title": f"Dokument til MitID-signering [{title}]",
-
-        "pdf_base64": base64.b64encode(
-            pdf_bytes
-        ).decode("utf-8"),
-
-        "sign_method": sign_method,
-
-        "send_email": True,
-
-        "signers": [
-            {
-                "name": signer_name,
-                "email": signer_email,
-                "order": 1
-            }
-        ]
-    }
-
-    response = requests.post(
-        url,
-        headers=headers,
-        json=payload,
-        timeout=60
-    )
-
-    response.raise_for_status()
-
-    result = response.json()
-
-    if not result.get("ok"):
-        raise RuntimeError(
-            f"SIGNITS contract creation failed: {result}"
-        )
-
-    contract_id = result["contract"]["id"]
-
-    print(
-        f"SIGNITS contract created: {contract_id}",
-        flush=True
-    )
-
-    return str(contract_id)
-
-
-# --------------------------------------------------
-# CHECK SIGNITS STATUS ONCE
-# --------------------------------------------------
-
-def check_signits_status(contract_id):
-
-    if not SIGNITS_API_KEY:
-        raise RuntimeError("SIGNITS_API_KEY is not set.")
-
-    url = (
-        f"{SIGNITS_BASE_URL}/api/v1/contracts/"
-        f"{contract_id}"
-    )
-
-    response = requests.get(
-        url,
-        headers={
-            "Authorization": f"Bearer {SIGNITS_API_KEY}"
-        },
-        timeout=30
-    )
-
-    response.raise_for_status()
-
-    result = response.json()
-
-    return result["contract"]
-
-
-# --------------------------------------------------
-# DOWNLOAD FINAL SIGNED PDF
-# --------------------------------------------------
-
-def download_signits_pdf(contract_id, reference):
-
-    if not SIGNITS_API_KEY:
-        raise RuntimeError("SIGNITS_API_KEY is not set.")
-
-    url = (
-        f"{SIGNITS_BASE_URL}/api/v1/contracts/"
-        f"{contract_id}/pdf"
-    )
-
-    response = requests.get(
-        url,
-        headers={
-            "Authorization": f"Bearer {SIGNITS_API_KEY}"
-        },
-        timeout=60
-    )
-
-    response.raise_for_status()
-
-    pdf_bytes = response.content
-
-    if not pdf_bytes.startswith(b"%PDF-"):
-        raise ValueError(
-            "SIGNITS did not return a valid PDF."
-        )
-
-    output_path = (
-        SIGNED_DIR /
-        f"eid_signed_{safe_filename(reference)}.pdf"
-    )
-
-    with open(output_path, "wb") as f:
-        f.write(pdf_bytes)
-
-    print(
-        f"Final eID-signed PDF downloaded: {output_path}",
-        flush=True
-    )
-
-    return str(output_path)

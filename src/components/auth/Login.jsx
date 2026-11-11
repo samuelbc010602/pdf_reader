@@ -1,13 +1,16 @@
 
-import { useContext, useState } from "react";
+import { useState } from "react";
 import { apiFetch } from "../../api";
 import "./Login.css";
-export default function Login({onLogin}) {
+
+export default function Login({ onLogin, onCancel }) {
   const [mode, setMode] = useState("login");
-  const [email, setEmail] = useState("");
-  const [username,setUsername] = useState("");
+
+  const [mail, setMail] = useState("");
+  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -26,33 +29,46 @@ export default function Login({onLogin}) {
     event.preventDefault();
     setError("");
 
+    if (isRegister && password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
     setLoading(true);
 
     try {
       if (isRegister) {
         await apiFetch("/api/register", {
           method: "POST",
-          body: JSON.stringify({ email, password, username }),
+          body: JSON.stringify({
+            mail: mail.trim().toLowerCase(),
+            name: name.trim(),
+            password,
+          }),
         });
       }
 
-      // Authenticate using the existing Flask endpoint.
-      // Registration itself does not establish a login session.
+      // Authenticate using the same mail and password.
       await apiFetch("/api/login", {
         method: "POST",
-        body: JSON.stringify({ email, password, username }),
+        body: JSON.stringify({
+          mail: mail.trim().toLowerCase(),
+          password,
+        }),
       });
 
+      // Retrieve the authenticated user.
       const user = await apiFetch("/api/me");
-      console.log("found user",user.id,user.name,user.email);
+
+      console.log("Found user:", user.id, user.name, user.mail);
 
       setPassword("");
       setConfirmPassword("");
+
       onLogin(user);
+
     } catch (err) {
-      setError(
-        err.message || "Something went wrong. Please try again."
-      );
+      setError(err.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -61,6 +77,7 @@ export default function Login({onLogin}) {
   return (
     <div className="auth-page">
       <div className="auth-card">
+
         <aside className="auth-hero">
           <div className="auth-brand">
             <div className="auth-brand-icon">P</div>
@@ -103,12 +120,25 @@ export default function Login({onLogin}) {
         </aside>
 
         <main className="auth-main">
+
+          <button
+            type="button"
+            className="auth-cancel"
+            onClick={onCancel}
+            aria-label="Close login"
+          >
+            ✕
+          </button>
           <div className="auth-mobile-brand">
             <div className="auth-brand-icon">P</div>
             <span>PDF Pro</span>
           </div>
 
-          <div className="auth-tabs" role="tablist" aria-label="Authentication">
+          <div
+            className="auth-tabs"
+            role="tablist"
+            aria-label="Authentication"
+          >
             <button
               type="button"
               role="tab"
@@ -147,8 +177,10 @@ export default function Login({onLogin}) {
           </div>
 
           <form className="auth-form" onSubmit={handleSubmit}>
+
+            {/* Mail address */}
             <div className="auth-field">
-              <label htmlFor="auth-email">Email address</label>
+              <label htmlFor="auth-mail">Mail address</label>
 
               <div className="auth-input-wrap">
                 <span className="auth-input-icon" aria-hidden="true">
@@ -156,34 +188,39 @@ export default function Login({onLogin}) {
                 </span>
 
                 <input
-                  id="auth-email"
+                  id="auth-mail"
                   type="email"
                   autoComplete="email"
                   placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={mail}
+                  onChange={(e) => setMail(e.target.value)}
                   maxLength={254}
                   required
                 />
               </div>
             </div>
 
-            <div className="auth-field">
-              <label htmlFor="auth-username">Username</label>
+            {/* Name: registration only */}
+            {isRegister && (
+              <div className="auth-field">
+                <label htmlFor="auth-name">Name</label>
 
-              <div className="auth-input-wrap">
-                <input
-                  id="auth-username"
-                  type="username"
-                  placeholder="samuel123"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  maxLength={254}
-                  required
-                />
+                <div className="auth-input-wrap">
+                  <input
+                    id="auth-name"
+                    type="text"
+                    autoComplete="name"
+                    placeholder="Your name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    maxLength={254}
+                    required
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
+            {/* Password */}
             <div className="auth-field">
               <label htmlFor="auth-password">Password</label>
 
@@ -199,7 +236,9 @@ export default function Login({onLogin}) {
                     isRegister ? "new-password" : "current-password"
                   }
                   placeholder={
-                    isRegister ? "At least 12 characters" : "Enter your password"
+                    isRegister
+                      ? "At least 12 characters"
+                      : "Enter your password"
                   }
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -210,8 +249,12 @@ export default function Login({onLogin}) {
                 <button
                   className="auth-password-toggle"
                   type="button"
-                  onClick={() => setShowPassword((previous) => !previous)}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  onClick={() =>
+                    setShowPassword((previous) => !previous)
+                  }
+                  aria-label={
+                    showPassword ? "Hide password" : "Show password"
+                  }
                 >
                   {showPassword ? "Hide" : "Show"}
                 </button>
@@ -224,6 +267,7 @@ export default function Login({onLogin}) {
               )}
             </div>
 
+            {/* Confirm password: registration only */}
             {isRegister && (
               <div className="auth-field">
                 <label htmlFor="auth-confirm-password">
@@ -241,7 +285,9 @@ export default function Login({onLogin}) {
                     autoComplete="new-password"
                     placeholder="Enter your password again"
                     value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    onChange={(e) =>
+                      setConfirmPassword(e.target.value)
+                    }
                     maxLength={1024}
                     required
                   />
@@ -249,6 +295,7 @@ export default function Login({onLogin}) {
               </div>
             )}
 
+            {/* Error message */}
             {error && (
               <div className="auth-error" role="alert">
                 <span aria-hidden="true">!</span>
@@ -256,6 +303,7 @@ export default function Login({onLogin}) {
               </div>
             )}
 
+            {/* Submit */}
             <button
               className="auth-submit"
               type="submit"
@@ -271,8 +319,11 @@ export default function Login({onLogin}) {
                     : "Log in"}
               </span>
 
-              {!loading && <span aria-hidden="true">→</span>}
+              {!loading && (
+                <span aria-hidden="true">→</span>
+              )}
             </button>
+
           </form>
 
           <div className="auth-divider">
@@ -282,11 +333,15 @@ export default function Login({onLogin}) {
           </div>
 
           <p className="auth-switch">
-            {isRegister ? "Already have an account?" : "New to PDF Pro?"}
+            {isRegister
+              ? "Already have an account?"
+              : "New to PDF Pro?"}
 
             <button
               type="button"
-              onClick={() => changeMode(isRegister ? "login" : "register")}
+              onClick={() =>
+                changeMode(isRegister ? "login" : "register")
+              }
             >
               {isRegister ? "Log in" : "Create an account"}
             </button>
@@ -296,6 +351,7 @@ export default function Login({onLogin}) {
             <span className="auth-security-icon">✓</span>
             <span>Your privacy matters. Your documents stay yours.</span>
           </div>
+
         </main>
       </div>
 

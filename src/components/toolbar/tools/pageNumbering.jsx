@@ -1,7 +1,8 @@
 import React, { useContext, useState } from "react";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { DocSpecsContext } from "@/App";
-
+import { Hash } from "lucide-react";
+import './tool_styles.css'
 export default function PageNumbering() {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -142,8 +143,13 @@ export default function PageNumbering() {
 
   return (
     <>
-      <button onClick={() => setIsOpen(true)}>
-        Add Page Numbers
+      <button
+        type="button"
+        className="dropdown-item"
+        onClick={() => setIsOpen(true)}
+      >
+        <Hash size={17} strokeWidth={1.8} />
+        <span>Add page numbers</span>
       </button>
 
       {isOpen && (

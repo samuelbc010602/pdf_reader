@@ -34,14 +34,6 @@ class User(UserMixin):
     def id(self):
         return str(self.user_id)
 
-    @property
-    def username(self):
-        return self.name
-
-    @property
-    def email(self):
-        return self.mail
-
 
 def get_user_by_id(user_id):
     with closing(get_connection()) as conn:
@@ -96,8 +88,8 @@ def register():
 
     data = request.get_json(silent=True) or {}
 
-    email = data.get("email", "")
-    username = data.get("username", "")
+    email = data.get("mail", "")
+    username = data.get("name", "")
     password = data.get("password", "")
 
     if not all(
@@ -151,7 +143,7 @@ def login():
 
     data = request.get_json(silent=True) or {}
 
-    email = data.get("email", "")
+    email = data.get("mail", "")
     password = data.get("password", "")
 
     if not isinstance(email, str) or not isinstance(password, str):
@@ -178,9 +170,9 @@ def login():
 @login_required
 def me():
     return jsonify(
-        id=current_user.id,
-        email=current_user.email,
-        username=current_user.username
+        user_id=current_user.id,
+        mail=current_user.mail,
+        name=current_user.name
     )
 
 

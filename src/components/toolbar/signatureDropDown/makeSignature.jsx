@@ -1,22 +1,80 @@
-import { useContext, useState } from "react";
-import { DocSpecsContext } from "@/App";
-import { AuthContext, NavigationContext} from "@/App";
+
+import { useContext, useState, useEffect } from "react";
+import { DocSpecsContext, AuthContext } from "@/App";
+import { DEV_MODE, DEV_INITIAL_STATE } from "@/config/devConfig";
+import "./MakeSignature.css";
 
 export default function MakeSignature() {
   const [isOpen, setIsOpen] = useState(false);
-  const [signMethod, setSignMethod] = useState("eid");
-  const [waitForPDF,setWaitForPDF] = useState(true);
-  const [signers, setSigners] = useState([
-    { id: crypto.randomUUID(), name: "", email: "" },
-  ]);
-  const [orderingMatters, setOrderingMatters] = useState(false);
-  const [error, setError] = useState("");
 
-  const { getCurrentFile, 
-          fileName,
-          uploadedFile} = useContext(DocSpecsContext);
-  const { user, setUser } = useContext(AuthContext);
-  const {activePage, previousPage, navigateTo, requestLogin} = useContext(NavigationContext);
+  const [signMethod, setSignMethod] = useState(
+    DEV_MODE ? DEV_INITIAL_STATE.signMethod : "eid"
+  );
+
+  const [signSamePdf, setSignSamePdf] = useState(
+    DEV_MODE ? DEV_INITIAL_STATE.signSamePdf : false
+  );
+
+  const [waitForPdfApproval, setWaitForPdfApproval] = useState(
+    DEV_MODE ? DEV_INITIAL_STATE.waitForPdfApproval : false
+  );
+
+  const [signers, setSigners] = useState(() =>
+    DEV_MODE
+      ? DEV_INITIAL_STATE.signers.map((signer) => ({
+          ...signer,
+          id: crypto.randomUUID(),
+        }))
+      : [{ id: crypto.randomUUID(), name: "", mail: "" }]
+  );
+
+  const [orderingMatters, setOrderingMatters] = useState(
+    DEV_MODE ? DEV_INITIAL_STATE.orderingMatters : false
+  );
+
+  const [senderEmail, setSenderEmail] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { getCurrentFile, fileName, uploadedFile } =
+    useContext(DocSpecsContext);
+
+  const { user } = useContext(AuthContext);
+
+  // --------------------------------------------------
+  // User state
+  // --------------------------------------------------
+
+  const isLoggedIn = Boolean(user);
+
+  const accountEmail = user?.mail || user?.email || "";
+
+  const effectiveSenderEmail = isLoggedIn
+    ? accountEmail
+    : senderEmail;
+
+  const senderName =
+    user?.name || user?.username || effectiveSenderEmail;
+
+  // --------------------------------------------------
+  // Effects
+  // --------------------------------------------------
+
+  useEffect(() => {
+    if (DEV_MODE) {
+      setIsOpen(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (accountEmail) {
+      setSenderEmail(accountEmail);
+    }
+  }, [accountEmail]);
+
+  // --------------------------------------------------
+  // Signer management
+  // --------------------------------------------------
 
   function addSigner() {
     if (signers.length >= 20) return;
@@ -26,7 +84,7 @@ export default function MakeSignature() {
       {
         id: crypto.randomUUID(),
         name: "",
-        email: "",
+        mail: "",
       },
     ]);
   }
@@ -40,9 +98,7 @@ export default function MakeSignature() {
   function updateSigner(id, field, value) {
     setSigners((current) =>
       current.map((signer) =>
-        signer.id === id
-          ? { ...signer, [field]: value }
-          : signer
+        signer.id === id ? { ...signer, [field]: value } : signer
       )
     );
   }
@@ -60,384 +116,645 @@ export default function MakeSignature() {
     });
   }
 
-  function handleStartSigning() {
+  function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+      email.trim()
+    );
+  }
+
+  // --------------------------------------------------
+  // Registration / login
+  // --------------------------------------------------
+
+  function openRegistration() {
+    setIsOpen(false);
+
+    // Uses the existing login modal event in your application.
+    // The login modal can offer registration as an alternative.
+    window.dispatchEvent(new CustomEvent("open-login"));
+  }
+
+  // --------------------------------------------------
+  // Start signing
+  // --------------------------------------------------
+
+  async function handleStartSigning() {
     setError("");
 
     if (!uploadedFile) {
       setError("No document has been selected.");
       return;
     }
-    if (!requestLogin()) {
+
+    if (
+      !effectiveSenderEmail.trim() ||
+      !isValidEmail(effectiveSenderEmail)
+    ) {
+      setError("Please provide a valid email address.");
       return;
     }
-    
+
     if (
       signers.some(
         (signer) =>
-          !signer.name.trim() ||
-          !signer.email.trim()
+          !signer.name.trim() || !signer.mail.trim()
       )
     ) {
       setError("Please enter a name and email for every signer.");
       return;
     }
 
-    const invalidEmail = signers.some(
-      (signer) =>
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signer.email.trim())
-    );
-
-    if (invalidEmail) {
-      setError("Please enter valid email addresses.");
+    if (
+      signers.some((signer) => !isValidEmail(signer.mail))
+    ) {
+      setError("Please enter valid email addresses for all signers.");
       return;
     }
 
-    console.log("Document:", uploadedFile);
+    const signerSummary = signers
+      .map(
+        (signer, index) =>
+          `${index + 1}. ${signer.name} (${signer.mail})`
+      )
+      .join("\n");
 
-    const combineDocumentWithSigners = async () => {
-      const actualFile = await getCurrentFile(); // Assuming this returns a File or Blob
-    
+    const accessDescription = isLoggedIn
+      ? "The contract will be saved to your account and available in your dashboard."
+      : `A private, one-time access link will be sent to ${effectiveSenderEmail}. You can use it to view the contract and track the signing process.`;
+
+    const confirmation = [
+      "Please confirm the contract settings:",
+      "",
+      `Document: ${fileName || "Untitled document"}`,
+      `Sender: ${senderName}`,
+      `Sender email: ${effectiveSenderEmail}`,
+      `Access: ${isLoggedIn ? "Account dashboard" : "One-time email link"}`,
+      `Signing method: ${signMethod === "eid" ? "eID" : "Email"}`,
+      `Number of signers: ${signers.length}`,
+      `Signing order: ${orderingMatters ? "Sequential" : "Any order"}`,
+      `Wait for PDF approval: ${waitForPdfApproval ? "Yes" : "No"}`,
+      `Sign same PDF: ${
+        orderingMatters && waitForPdfApproval && signSamePdf
+          ? "Yes"
+          : "No"
+      }`,
+      "",
+      "Signers:",
+      signerSummary,
+      "",
+      accessDescription,
+      "",
+      "Do you want to send this contract?",
+    ].join("\n");
+
+    if (!window.confirm(confirmation)) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const actualFile = await getCurrentFile();
+
       if (!actualFile) {
-        console.error("No file selected for signing.");
-        setError("No file selected for signing.");
-        return;
+        throw new Error("Could not retrieve the current PDF.");
       }
-    
+
       const formData = new FormData();
-      formData.append("pdf", actualFile, actualFile.name); // Ensure the file has a name
+
+      formData.append(
+        "pdf",
+        actualFile,
+        actualFile.name || "document.pdf"
+      );
+
       formData.append("sign_method", signMethod);
-      formData.append("username",user.username);
-      formData.append("mail",user.email);
-      formData.append("ordering_matters", orderingMatters);
-      formData.append("signers", JSON.stringify(signers)); // Send signers as stringified JSON inside form data
-      formData.append("title",fileName);
-      formData.append("waitForPDF",waitForPDF);
-      try {
-        const response = await fetch("/api/send_contract", {
-          method: "POST",
-          credentials: "include",
-          body: formData,
-        });
-    
-        if (!response.ok) {
-          console.error("send contract responded with error");
-          setError("Failed to send contract. Please try again.");
-        } else {
-          const result = await response.json();
-          console.log("Contract sent successfully:", result);
-        }
-      } catch (error) {
-        console.error("Error sending contract:", error);
-        setError("An error occurred while sending the contract.");
+
+      formData.append("name", senderName);
+      formData.append("mail", effectiveSenderEmail);
+
+      // Only guests need a one-time access link.
+      formData.append(
+        "guest_access",
+        String(!isLoggedIn)
+      );
+
+      if (!isLoggedIn) {
+        formData.append("sender_email", effectiveSenderEmail);
       }
-    };
-    combineDocumentWithSigners(); 
+
+      formData.append(
+        "ordering_matters",
+        String(orderingMatters)
+      );
+
+      formData.append("signers", JSON.stringify(signers));
+
+      formData.append(
+        "title",
+        fileName || "Untitled document"
+      );
+
+      formData.append(
+        "signSamePdf",
+        String(
+          orderingMatters &&
+            waitForPdfApproval &&
+            signSamePdf
+        )
+      );
+
+      formData.append(
+        "waitForPdfApproval",
+        String(waitForPdfApproval)
+      );
+
+      const response = await fetch("/api/send_contract", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+
+      const responseText = await response.text();
+
+      let result;
+
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        throw new Error(
+          `Server returned an invalid response: ${responseText}`
+        );
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          result.error ||
+            result.message ||
+            `Request failed (${response.status})`
+        );
+      }
+
+      console.log("Contract accepted:", result);
+
+      setIsOpen(false);
+      setError("");
+
+    } catch (err) {
+      console.error(
+        "Error starting signature process:",
+        err
+      );
+
+      setError(
+        err.message ||
+          "An error occurred while sending the contract."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
+
+  // --------------------------------------------------
+  // Render
+  // --------------------------------------------------
 
   return (
     <>
-        <button className={"toolbar_button"} onClick={() => setIsOpen(true)}>
-          Signature
-        </button>
-        {isOpen && (
-        <div style={styles.overlay}>
+      <button
+        className="toolbar_button"
+        onClick={() => setIsOpen(true)}
+      >
+        Signature
+      </button>
+
+      {isOpen && (
+        <div
+          className="signature-overlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsOpen(false);
+            }
+          }}
+        >
           <div
+            className="signature-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="signature-title"
-            style={styles.modal}
           >
-            <div style={styles.header}>
-              <h2 id="signature-title">Sign document</h2>
-              <button onClick={() => setIsOpen(false)}>
-                Close
+            {/* Header */}
+            <div className="signature-header">
+              <div>
+                <div className="signature-eyebrow">
+                  DOCUMENT WORKFLOW
+                </div>
+
+                <h2 id="signature-title">
+                  Send for signature
+                </h2>
+
+                <p>
+                  Configure your signing process and invite the
+                  required signers.
+                </p>
+              </div>
+
+              <button
+                className="signature-close"
+                onClick={() => setIsOpen(false)}
+                aria-label="Close"
+              >
+                ×
               </button>
             </div>
 
-            <p>
-              Choose how you want the document to be signed.
-            </p>
+            {/* Sender / account access */}
+            <section className="signature-section">
+              <div className="section-heading">
+                <div>
+                  <h3>Contract access</h3>
+                  <p>
+                    Choose how you want to access and manage
+                    this contract.
+                  </p>
+                </div>
+              </div>
 
-            <div style={styles.methodContainer}>
-          <label style={styles.methodOption}>
-              <input
-                  type="radio"
-                  name="signMethod"
-                  value="eid"
-                  checked={signMethod === "eid"}
-                  onChange={() => setSignMethod("eid")}
-              />
-              eID
-          </label>
+              {isLoggedIn ? (
+                <div className="account-access-card">
+                  <div className="account-access-icon">
+                    ✓
+                  </div>
 
-          <label style={styles.methodOption}>
-              <input
-                  type="radio"
-                  name="signMethod"
-                  value="email"
-                  checked={signMethod === "email"}
-                  onChange={() => setSignMethod("email")}
-              />
-              Email signing
-          </label>
-      </div>
+                  <div className="account-access-content">
+                    <strong>Contract saved to your account</strong>
 
-      <br />
+                    <p>
+                      This contract will be associated with your
+                      account and available in your dashboard.
+                    </p>
 
-      <div style={styles.methodContainer}>
-          <label style={styles.methodOption}>
-              <input
-                  type="checkbox"
-                  checked={waitForPDF}
-                  onChange={(e) => setWaitForPDF(e.target.checked)}
-              />
-              Wait for PDF to be signed before eID/Email approval
-          </label>
-      </div>
-
-            <div style={styles.divider} />
-
-            <div style={styles.signerHeading}>
-              <h3>Signers</h3>
-              <span>{signers.length}/20</span>
-            </div>
-
-            {signers.map((signer, index) => (
-              <div key={signer.id} style={styles.signerCard}>
-                <div style={styles.signerHeader}>
-                  <strong>Signer {index + 1}</strong>
-
-                  <div style={styles.controls}>
-                    <button
-                      disabled={index === 0}
-                      onClick={() => moveSigner(index, -1)}
-                    >
-                      ↑
-                    </button>
-
-                    <button
-                      disabled={index === signers.length - 1}
-                      onClick={() => moveSigner(index, 1)}
-                    >
-                      ↓
-                    </button>
-
-                    {signers.length > 1 && (
-                      <button
-                        onClick={() => removeSigner(signer.id)}
-                      >
-                        Remove
-                      </button>
-                    )}
+                    <span>
+                      {accountEmail || "Logged-in account"}
+                    </span>
                   </div>
                 </div>
+              ) : (
+                <>
+                  <div className="guest-access-card">
+                    <div className="guest-access-icon">
+                      ✉
+                    </div>
 
-                <label style={styles.fieldLabel}>
-                  Name
+                    <div className="guest-access-content">
+                      <strong>Access your contract by email</strong>
+
+                      <p>
+                        After sending, we'll email you a private
+                        one-time link. From that page you can view
+                        your contract, see all signers, and follow
+                        the signing progress.
+                      </p>
+
+                      <label className="signature-field">
+                        <span>Your email address</span>
+
+                        <input
+                          type="email"
+                          value={senderEmail}
+                          onChange={(e) =>
+                            setSenderEmail(e.target.value)
+                          }
+                          placeholder="you@example.com"
+                          autoComplete="email"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="registration-promo">
+                    <div>
+                      <strong>
+                        Want to keep track of all your contracts?
+                      </strong>
+
+                      <p>
+                        Create a free account to get your own
+                        dashboard, revisit previous contracts,
+                        track signing activity and manage your
+                        documents in one place.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={openRegistration}
+                    >
+                      Register / Log in →
+                    </button>
+                  </div>
+                </>
+              )}
+            </section>
+
+            <div className="signature-divider" />
+
+            {/* Signing method */}
+            <section className="signature-section">
+              <div className="section-heading">
+                <div>
+                  <h3>Signing method</h3>
+                  <p>
+                    Choose how recipients will sign the document.
+                  </p>
+                </div>
+              </div>
+
+              <div className="sign-method-options">
+                <label
+                  className={`sign-method-card ${
+                    signMethod === "eid" ? "selected" : ""
+                  }`}
+                >
                   <input
-                    style={styles.input}
-                    type="text"
-                    value={signer.name}
-                    onChange={(event) =>
-                      updateSigner(
-                        signer.id,
-                        "name",
-                        event.target.value
-                      )
-                    }
-                    placeholder="Full name"
+                    type="radio"
+                    name="signMethod"
+                    value="eid"
+                    checked={signMethod === "eid"}
+                    onChange={() => setSignMethod("eid")}
                   />
+
+                  <span className="method-card-content">
+                    <strong>eID</strong>
+                    <small>Electronic identification</small>
+                  </span>
                 </label>
 
-                <label style={styles.fieldLabel}>
-                  Email
+                <label
+                  className={`sign-method-card ${
+                    signMethod === "mail" ? "selected" : ""
+                  }`}
+                >
                   <input
-                    style={styles.input}
-                    type="email"
-                    value={signer.email}
-                    onChange={(event) =>
-                      updateSigner(
-                        signer.id,
-                        "email",
-                        event.target.value
-                      )
-                    }
-                    placeholder="Email address"
+                    type="radio"
+                    name="signMethod"
+                    value="mail"
+                    checked={signMethod === "mail"}
+                    onChange={() => setSignMethod("mail")}
                   />
+
+                  <span className="method-card-content">
+                    <strong>Email signing</strong>
+                    <small>Sign through an email invitation</small>
+                  </span>
                 </label>
               </div>
-            ))}
+            </section>
 
-            <button
-              style={styles.addButton}
-              disabled={signers.length >= 20}
-              onClick={addSigner}
-            >
-              + Add signer
-            </button>
+            <div className="signature-divider" />
 
-            <div style={styles.divider} />
+            {/* Signing settings */}
+            <section className="signature-section">
+              <div className="section-heading">
+                <div>
+                  <h3>Signing settings</h3>
+                  <p>
+                    Control how the signing process works.
+                  </p>
+                </div>
+              </div>
 
-            <label style={styles.orderingOption}>
-              <input
-                type="checkbox"
-                checked={orderingMatters}
-                onChange={(event) =>
-                  setOrderingMatters(event.target.checked)
-                }
-              />
-              Ordering matters
-            </label>
+              <div className="signature-settings">
+                <label className="setting-row">
+                  <input
+                    type="checkbox"
+                    checked={orderingMatters}
+                    onChange={(e) =>
+                      setOrderingMatters(e.target.checked)
+                    }
+                  />
 
-            <p style={styles.hint}>
-              {orderingMatters
-                ? "Signers must sign sequentially in the order shown above."
-                : "Signers can sign in any order."}
-            </p>
+                  <span className="setting-content">
+                    <strong>Signing order matters</strong>
+                    <small>
+                      Signers must sign in the order listed below.
+                    </small>
+                  </span>
+                </label>
 
+                <label className="setting-row">
+                  <input
+                    type="checkbox"
+                    checked={waitForPdfApproval}
+                    onChange={(e) =>
+                      setWaitForPdfApproval(e.target.checked)
+                    }
+                  />
+
+                  <span className="setting-content">
+                    <strong>Wait for PDF approval</strong>
+                    <small>
+                      Wait for the PDF to be approved before
+                      proceeding with the next signing step.
+                    </small>
+                  </span>
+                </label>
+
+                <label
+                  className={`setting-row ${
+                    orderingMatters && waitForPdfApproval
+                      ? ""
+                      : "setting-disabled"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={signSamePdf}
+                    disabled={
+                      !(orderingMatters && waitForPdfApproval)
+                    }
+                    onChange={(e) =>
+                      setSignSamePdf(e.target.checked)
+                    }
+                  />
+
+                  <span className="setting-content">
+                    <strong>Sign the same PDF</strong>
+                    <small>
+                      Use the previously signed PDF for the next
+                      signer.
+                    </small>
+                  </span>
+                </label>
+              </div>
+            </section>
+
+            <div className="signature-divider" />
+
+            {/* Signers */}
+            <section className="signature-section">
+              <div className="signers-heading">
+                <div>
+                  <h3>Signers</h3>
+                  <p>
+                    Add the people who need to sign this document.
+                  </p>
+                </div>
+
+                <span className="signer-count">
+                  {signers.length} / 20
+                </span>
+              </div>
+
+              <div className="signer-list">
+                {signers.map((signer, index) => (
+                  <div
+                    className="signer-card"
+                    key={signer.id}
+                  >
+                    <div className="signer-number">
+                      {index + 1}
+                    </div>
+
+                    <div className="signer-fields">
+                      <label className="signer-field">
+                        <span>Name</span>
+
+                        <input
+                          type="text"
+                          value={signer.name}
+                          onChange={(e) =>
+                            updateSigner(
+                              signer.id,
+                              "name",
+                              e.target.value
+                            )
+                          }
+                          placeholder="Full name"
+                        />
+                      </label>
+
+                      <label className="signer-field">
+                        <span>Email address</span>
+
+                        <input
+                          type="email"
+                          value={signer.mail}
+                          onChange={(e) =>
+                            updateSigner(
+                              signer.id,
+                              "mail",
+                              e.target.value
+                            )
+                          }
+                          placeholder="name@example.com"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="signer-controls">
+                      <button
+                        type="button"
+                        className="icon-button"
+                        title="Move up"
+                        aria-label={`Move signer ${index + 1} up`}
+                        disabled={index === 0}
+                        onClick={() =>
+                          moveSigner(index, -1)
+                        }
+                      >
+                        ↑
+                      </button>
+
+                      <button
+                        type="button"
+                        className="icon-button"
+                        title="Move down"
+                        aria-label={`Move signer ${index + 1} down`}
+                        disabled={index === signers.length - 1}
+                        onClick={() =>
+                          moveSigner(index, 1)
+                        }
+                      >
+                        ↓
+                      </button>
+
+                      {signers.length > 1 && (
+                        <button
+                          type="button"
+                          className="icon-button remove-signer"
+                          title="Remove signer"
+                          aria-label={`Remove signer ${index + 1}`}
+                          onClick={() =>
+                            removeSigner(signer.id)
+                          }
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="add-signer-row">
+                <span>
+                  {signers.length >= 20
+                    ? "Maximum number of signers reached"
+                    : "Need another signer?"}
+                </span>
+
+                <button
+                  type="button"
+                  className="add-signer-button"
+                  disabled={signers.length >= 20}
+                  onClick={addSigner}
+                >
+                  + Add signer
+                </button>
+              </div>
+
+              {orderingMatters && (
+                <div className="signing-order-hint">
+                  <span>ⓘ</span>
+                  Signers will be invited sequentially,
+                  starting with signer 1.
+                </div>
+              )}
+            </section>
+
+            {/* Error */}
             {error && (
-              <p role="alert" style={styles.error}>
+              <div className="signature-error" role="alert">
+                <span>!</span>
                 {error}
-              </p>
+              </div>
             )}
 
-            <div style={styles.footer}>
-              <button onClick={() => setIsOpen(false)}>
+            {/* Footer */}
+            <div className="signature-footer">
+              <button
+                className="signature-cancel-button"
+                onClick={() => setIsOpen(false)}
+                disabled={isSubmitting}
+              >
                 Cancel
               </button>
 
-              <button onClick={handleStartSigning}>
-                Continue
+              <button
+                className="signature-submit-button"
+                onClick={handleStartSigning}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Sending..." : "Review & send"}
+
+                {!isSubmitting && <span>→</span>}
               </button>
             </div>
           </div>
         </div>
-        )}
+      )}
     </>
   );
 }
-
-const styles = {
-  overlay: {
-    position: "fixed",
-    inset: 0,
-    zIndex: 1000,
-    background: "rgba(0, 0, 0, 0.5)",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 16,
-  },
-
-  modal: {
-    background: "white",
-    color: "#222",
-    borderRadius: 12,
-    padding: 24,
-    width: "min(720px, 100%)",
-    maxHeight: "90vh",
-    overflowY: "auto",
-    boxSizing: "border-box",
-  },
-
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-  },
-
-  methodContainer: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 24,
-    marginTop: 16,
-  },
-
-  methodOption: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    cursor: "pointer",
-  },
-
-  divider: {
-    borderTop: "1px solid #ddd",
-    margin: "20px 0",
-  },
-
-  signerHeading: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-
-  signerCard: {
-    border: "1px solid #ddd",
-    borderRadius: 8,
-    padding: 16,
-    marginTop: 12,
-  },
-
-  signerHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-  },
-
-  controls: {
-    display: "flex",
-    gap: 6,
-  },
-
-  fieldLabel: {
-    display: "block",
-    marginTop: 12,
-  },
-
-  input: {
-    display: "block",
-    width: "100%",
-    boxSizing: "border-box",
-    padding: "9px 10px",
-    marginTop: 5,
-    border: "1px solid #ccc",
-    borderRadius: 6,
-  },
-
-  addButton: {
-    display: "inline-block",
-    cursor: "pointer",
-    padding: "10px 14px",
-    border: "1px solid #ccc",
-    borderRadius: 6,
-    marginTop: 12,
-  },
-
-  orderingOption: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    cursor: "pointer",
-  },
-
-  hint: {
-    color: "#666",
-    fontSize: 13,
-    marginTop: 8,
-  },
-
-  footer: {
-    display: "flex",
-    flexWrap: "wrap",
-    justifyContent: "flex-end",
-    gap: 8,
-    marginTop: 24,
-  },
-
-  error: {
-    color: "#b00020",
-    marginTop: 12,
-  },
-};

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { PDFDocument } from "pdf-lib";
-
+import { Combine } from "lucide-react";
+import './tool_styles.css'
 export default function MergePDF({
   uploadedFile,
   setUploadedFile,
@@ -186,8 +187,12 @@ export default function MergePDF({
 
   return (
     <>
-      <button onClick={() => setIsOpen(true)}>
-        Merge/Split PDFs
+      <button
+        className="dropdown-item"
+        onClick={() => setIsOpen(true)}
+      >
+        <Combine size={17} strokeWidth={1.8} />
+        <span>Merge/Split PDFs</span>
       </button>
 
       {isOpen && (

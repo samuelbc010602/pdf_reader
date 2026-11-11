@@ -1,0 +1,1 @@
+{"ok":false,"error":{"code":"unauthorized","message":"Manglende eller ugyldig Authorization-header. Brug: Authorization: Bearer sk_live_..."}}

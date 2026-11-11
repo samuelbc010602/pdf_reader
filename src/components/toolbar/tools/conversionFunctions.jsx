@@ -1,6 +1,9 @@
 import React, { useContext, useState } from "react";
 import { DocSpecsContext } from "@/App";
-
+import './tool_styles.css'
+import { Globe } from "lucide-react";
+import { FileText } from "lucide-react";
+import { FileType } from "lucide-react";
 function createValidPdfFile(filename) {
   const minimalPdfBytes = 
     "%PDF-1.7\n" +
@@ -201,7 +204,14 @@ export function HTMLPDF() {
 
   return (
     <>
-      <button onClick={() => setIsOpen(true)}>HTML to PDF</button>
+      <button
+        type="button"
+        className="dropdown-item"
+        onClick={() => setIsOpen(true)}
+      >
+        <Globe size={17} strokeWidth={1.8} />
+        <span>HTML to PDF</span>
+      </button>
 
       {isOpen && (
         <div style={styles.overlay}>
@@ -448,7 +458,14 @@ export function MarkdownPDF() {
 
   return (
     <>
-      <button onClick={() => setIsOpen(true)}>Markdown to PDF</button>
+      <button
+  type="button"
+  className="dropdown-item"
+  onClick={() => setIsOpen(true)}
+>
+  <FileText size={17} strokeWidth={1.8} />
+  <span>Markdown to PDF</span>
+</button>
 
       {isOpen && (
         <div style={styles.overlay}>
@@ -654,7 +671,14 @@ export function WordPDF() {
 
   return (
     <>
-      <button onClick={() => setIsOpen(true)}>Word to PDF</button>
+      <button
+  type="button"
+  className="dropdown-item"
+  onClick={() => setIsOpen(true)}
+>
+  <FileType size={17} strokeWidth={1.8} />
+  <span>Word to PDF</span>
+</button>
 
       {isOpen && (
         <div style={styles.overlay}>

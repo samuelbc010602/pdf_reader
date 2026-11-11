@@ -4,7 +4,8 @@ import * as pdfjsLib from "pdfjs-dist";
 import { createWorker } from "tesseract.js";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { DocSpecsContext } from "@/App";
-
+import './tool_styles.css'
+import { ScanText } from "lucide-react";
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 export default function OCR() {
@@ -253,7 +254,14 @@ export default function OCR() {
 
   return (
     <>
-      <button onClick={() => setIsOpen(true)}>OCR</button>
+      <button
+  type="button"
+  className="dropdown-item"
+  onClick={() => setIsOpen(true)}
+>
+  <ScanText size={17} strokeWidth={1.8} />
+  <span>OCR</span>
+</button>
 
       {isOpen && (
         <div style={styles.overlay}>

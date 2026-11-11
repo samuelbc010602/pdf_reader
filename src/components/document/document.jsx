@@ -5,6 +5,11 @@ import PdfViewer from "./pdf_editors/pdfViewer";
 import PdfEditor from "./pdf_editors/pdfEditor";
 import OpenFile from "../toolbar/fileDropDown/openFile";
 import "./document.css";
+import {
+  DEV_MODE,
+  DEV_USER,
+  DEV_INITIAL_STATE,
+} from "@/config/devConfig";
 
 export default function CustomDocument() {
   const {
@@ -145,6 +150,49 @@ export default function CustomDocument() {
     setPendingAction(null);
     setShowOverwriteConfirm(false);
   }
+
+  useEffect(() => {
+    const loadPdf = async () => {
+      if (DEV_MODE) {
+        setNewPdf(false);
+
+        try {
+          const response = await fetch("/mangler_underskrift.pdf");
+  
+          if (!response.ok) {
+            throw new Error("Could not load development PDF");
+          }
+  
+          const blob = await response.blob();
+  
+          const file = new File(
+            [blob],
+            "mangler_underskrift.pdf",
+            { type: "application/pdf" }
+          );
+
+          
+          const url = URL.createObjectURL(file);
+          setShowOverwriteConfirm(false);
+          setUploadedFile(file);
+          setPdfUrl(url);
+  
+        } catch (error) {
+          console.error("Error loading development PDF:", error);
+        }
+  
+        return;
+      }
+  
+      // Your existing production/current-file logic
+      if (currentFile) {
+        const url = URL.createObjectURL(currentFile);
+        setPdfUrl(url);
+      }
+    };
+    
+    loadPdf();
+  }, [currentFile]);
 
   const confirmationMessage =
     pendingAction?.type === "new"

@@ -17,9 +17,8 @@ signature_bp = Blueprint("signature", __name__)
 def send_contract():
 
     pdf = request.files.get("pdf")
-    
-    username = request.form.get("username")
-    print("username in send_contract",username)
+    print("this is the requst.form",request.form)
+    name = request.form.get("name")
     mail = request.form.get("mail")
 
     if not pdf:
@@ -40,7 +39,7 @@ def send_contract():
             raise ValueError("Invalid signer list")
 
         for signer in signers:
-            if not signer.get("name") or not signer.get("email"):
+            if not signer.get("name") or not signer.get("mail"):
                 raise ValueError("Each signer needs a name and email")
 
     except (json.JSONDecodeError, ValueError, AttributeError) as e:
@@ -48,7 +47,8 @@ def send_contract():
 
     title = request.form.get("title")
     sign_method = request.form.get("sign_method")
-    waitForPDF = request.form.get("waitForPDF")
+    signSamePdf = request.form.get("signSamePdf")
+    waitForPdfApproval = request.form.get("waitForPdfApproval")
 
     ordering_matters = (
         request.form.get("ordering_matters", "").lower()
@@ -74,12 +74,13 @@ def send_contract():
     task = send_contract_task.delay(
         pdf_path,
         title,
-        username,
+        name,
         mail,
         sign_method,
         signers,
         ordering_matters,
-        waitForPDF
+        signSamePdf,
+        waitForPdfApproval
     )
 
     return jsonify({
@@ -87,11 +88,7 @@ def send_contract():
         "message": "Signing process started.",
         "task_id": task.id
     }), 202
-    
-    
-    
 
-    
 @signature_bp.get("/signing_status/<task_id>")
 def signing_status(task_id):
 

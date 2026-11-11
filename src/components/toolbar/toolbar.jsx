@@ -26,6 +26,9 @@ import {
   FileText,
   FileType,
   Hash,
+  FilePlus,
+  FileJson,
+  Save,
 } from "lucide-react";
 import MakeSignature from './signatureDropDown/makeSignature'
 
@@ -45,6 +48,12 @@ export default function Toolbar() {
     toCapture,setToCapture,
     newPdf,setNewPdf
   } = useContext(DocSpecsContext);
+
+  const triggerPdfEditor = (action) => {
+    window.dispatchEvent(
+      new Event(`pdf-editor:${action}`)
+    );
+  };
 
   const {user,setUser} = useContext(AuthContext);
   const {
@@ -91,23 +100,63 @@ export default function Toolbar() {
       case "files":
         return (
           <div className="dropdown-menu">
-            {!newPdf && (<DropdownItem
-              icon={FolderOpen}
-              onClick = {() => setNewPdf(true)}
-            >
-             New
-            </DropdownItem>)}
+
+            {!newPdf && (
+              <DropdownItem
+                icon={FilePlus}
+                onClick={() => setNewPdf(true)}
+              >
+                New
+              </DropdownItem>
+            )}
+
+            {newPdf && (
+              <>
+                <DropdownItem
+                  icon={FilePlus}
+                  onClick={() => triggerPdfEditor("new")}
+                >
+                  New
+                </DropdownItem>
+
+                <DropdownItem
+                  icon={FolderOpen}
+                  onClick={() => triggerPdfEditor("open-template")}
+                >
+                  Open template
+                </DropdownItem>
+
+                <DropdownItem
+                  icon={Save}
+                  onClick={() => triggerPdfEditor("save-template")}
+                >
+                  Save template
+                </DropdownItem>
+
+                <DropdownItem
+                  icon={Download}
+                  onClick={() => triggerPdfEditor("export")}
+                >
+                  Download PDF
+                </DropdownItem>
+              </>
+            )}
 
             <DropdownItem
               icon={FolderOpen}
               onClick={() =>
-                OpenFile({ setUploadedFile, setFileName, setFileType, setNewPdf })
+                OpenFile({
+                  setUploadedFile,
+                  setFileName,
+                  setFileType,
+                  setNewPdf
+                })
               }
             >
               Open
             </DropdownItem>
-  
-            {uploadedFile && (
+
+            {!newPdf && uploadedFile && (
               <>
                 <DropdownItem
                   icon={Download}
@@ -115,7 +164,7 @@ export default function Toolbar() {
                 >
                   Download
                 </DropdownItem>
-  
+
                 <DropdownItem
                   icon={Printer}
                   onClick={() => setToPrint(toPrint + 1)}
@@ -124,8 +173,10 @@ export default function Toolbar() {
                 </DropdownItem>
               </>
             )}
+
           </div>
         );
+
   
       case "tools":
         return (
